@@ -1,11 +1,11 @@
-Welcome to the Duckietown Pondcleaner documentation
-===================================================
+Welcome to the Duckietown's State Estimation libraries documentation
+====================================================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   duckietown_pondcleaner/index
+   dt_state_estimation/index
 
 
 Indices and tables
