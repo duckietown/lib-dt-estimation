@@ -25,10 +25,6 @@ class LaneFilterHistogram(ILaneFilter):
     corresponding lane pose "votes", and adds it to the corresponding part of the histogram.
 
     Best estimate correspond to the slot of the histogram with the highest voted value.
-
-    Args:
-        configuration (:obj:`List`): A list of the parameters for the filter
-
     """
 
     def __init__(self, *args, **kwargs):

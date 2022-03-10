@@ -7,10 +7,10 @@ import numpy as np
 
 
 class LaneFilterStatus(Enum):
-    UNKNOWN = "unknown"
-    LOST = "lost"
-    GOOD = "good"
-    STRUGGLING = "struggling"
+    UNKNOWN = "UNKNOWN"
+    LOST = "LOST"
+    GOOD = "GOOD"
+    STRUGGLING = "STRUGGLING"
 
 
 class SegmentColor(Enum):

@@ -3,8 +3,6 @@ import numpy as np
 from dt_state_estimation.lane_filter import LaneFilterHistogram
 from dt_state_estimation.lane_filter.types import Segment, SegmentPoint, SegmentColor
 
-from dt_state_estimation.lane_filter.rendering import plot_belief
-
 segment_length: float = 0.05
 lane_width: float = 0.225
 half_lane: float = lane_width * 0.5
