@@ -1,22 +1,15 @@
-#!/usr/bin/env python3
-
 import time
-import math
-from typing import List
+import logging
+from threading import Semaphore
+from typing import Tuple, Optional
 
-import rospy
-import message_filters
+import numpy as np
 
-from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Quaternion, Twist, Pose, Point, Vector3, TransformStamped, Transform
-
-from duckietown.dtros import DTROS, NodeType
-from duckietown_msgs.msg import WheelEncoderStamped
-from tf2_ros import TransformBroadcaster
-
-from tf import transformations as tr
-
-from dt_state_estimation.wheel_odometry.types import IWheelOdometer
+from dt_state_estimation.wheel_odometry.types import \
+    IWheelOdometer, \
+    Pose2DEstimate, \
+    Velocity2DEstimate
+from dt_state_estimation.wheel_odometry.utils import angle_clamp
 
 
 class WheelOdometer(IWheelOdometer):
@@ -24,159 +17,85 @@ class WheelOdometer(IWheelOdometer):
     Performs odometry estimation using data from wheel encoders (aka deadreckoning).
     """
 
-    def __init__(self, *args, **kwargs):
-        super(WheelOdometer, self).__init__(*args, **kwargs)
-        self.left_encoder_last = None
-        self.right_encoder_last = None
-        self.encoders_timestamp_last = None
-        self.encoders_timestamp_last_local = None
-
-        # Current pose, forward velocity, and angular rate
-        self.timestamp = None
-        self.x = 0.0
-        self.y = 0.0
-        self.z = 0.0
-        self.yaw = 0.0
-        self.q = [0.0, 0.0, 0.0, 1.0]
-        self.tv = 0.0
-        self.rv = 0.0
-
-        # Used for debugging
-        self.x_trajectory = []
-        self.y_trajectory = []
-        self.yaw_trajectory = []
-        self.time = []
-
-        self.total_dist = 0
-
-        self._print_time = 0
-        self._print_every_sec = 30
+    def __init__(self, ticks_per_meter: float, wheel_baseline: float):
+        super(WheelOdometer, self).__init__(ticks_per_meter, wheel_baseline)
+        # current pose
+        self._pose = Pose2DEstimate(0, 0, 0, 0)
+        # linear/angular velocity
+        self._velocity = Velocity2DEstimate(0, 0, 0)
+        # temporary data
+        self._left_ticks_last = None
+        self._right_ticks_last = None
+        self._timestamp_last = None
+        self._has_estimate = None
+        # others
+        self._lock = Semaphore()
+        self._logger = logging.getLogger("WheelOdometer")
 
     def initialize(self):
         pass
 
-    def update(self, segment_list):
-        timestamp_now = rospy.get_time()
-
-        # Use the average of the two encoder times as the timestamp
-        left_encoder_timestamp = left_encoder.header.stamp.to_sec()
-        right_encoder_timestamp = right_encoder.header.stamp.to_sec()
-        timestamp = (left_encoder_timestamp + right_encoder_timestamp) / 2
-
-        if not self.left_encoder_last:
-            self.left_encoder_last = left_encoder
-            self.right_encoder_last = right_encoder
-            self.encoders_timestamp_last = timestamp
-            self.encoders_timestamp_last_local = timestamp_now
+    def update(self, left_ticks: int, right_ticks: int, timestamp: float = None):
+        if self._timestamp_last is None:
+            # move cursor forward
+            self._left_ticks_last = left_ticks
+            self._right_ticks_last = right_ticks
+            self._timestamp_last = timestamp
             return
 
-        left_dticks = left_encoder.data - self.left_encoder_last.data
-        right_dticks = right_encoder.data - self.right_encoder_last.data
+        # timestamp is NOW if not given
+        timestamp = timestamp or time.time()
 
-        left_distance = left_dticks * 1.0 / self.ticks_per_meter
-        right_distance = right_dticks * 1.0 / self.ticks_per_meter
+        # compute delta_t between this reading and the previous
+        dt = timestamp - self._timestamp_last
 
-        # Displacement in body-relative x-direction
-        distance = (left_distance + right_distance) / 2
+        # compute the motion of left and right wheels in number of ticks
+        left_delta_ticks = left_ticks - self._left_ticks_last
+        right_delta_ticks = right_ticks - self._right_ticks_last
 
-        # Change in heading
-        dyaw = (right_distance - left_distance) / self.wheel_base
+        # compute the motion of left and right wheels in meters traveled
+        left_distance = left_delta_ticks / self.ticks_per_meter
+        right_distance = right_delta_ticks / self.ticks_per_meter
 
-        dt = timestamp - self.encoders_timestamp_last
+        # displacement in body-relative x-direction (assuming differential drive)
+        delta_x = (left_distance + right_distance) / 2
+
+        # change in heading
+        delta_theta = (right_distance - left_distance) / self.wheel_base
 
         if dt < 1e-6:
-            self.logwarn("Time since last encoder message (%f) is too small. Ignoring" % dt)
+            self._logger.warning(f"Time between readings ({dt:.5f}) is too small. Ignoring")
             return
 
-        self.tv = distance / dt
-        self.rv = dyaw / dt
+        # update internal state
+        with self._lock:
+            # linear and angular velocities
+            self._velocity.v = delta_x / dt
+            self._velocity.w = delta_theta / dt
 
-        if self.debug:
-            self.loginfo(
-                "Left wheel:\t Time = %.4f\t Ticks = %d\t Distance = %.4f m"
-                % (left_encoder.header.stamp.to_sec(), left_encoder.data, left_distance)
+            self._logger.debug(
+                f"Time = {timestamp} s; Dt = {dt:.5f} s;\n "
+                f"\tLeft wheel: {left_ticks} ticks; {left_distance} meters;\n "
+                f"\tRight wheel: {right_ticks} ticks; {right_distance} meters;\n "
+                f"\tv: {self._velocity.v:.4f} m/s;\n "
+                f"\tw: {np.rad2deg(self._velocity.w)} deg/s;"
             )
 
-            self.loginfo(
-                "Right wheel:\t Time = %.4f\t Ticks = %d\t Distance = %.4f m"
-                % (right_encoder.header.stamp.to_sec(), right_encoder.data, right_distance)
-            )
+            print(delta_x, self._pose.theta, np.cos(self._pose.theta), np.sin(self._pose.theta))
 
-            self.loginfo(
-                "TV = %.2f m/s\t RV = %.2f deg/s\t DT = %.4f" % (
-                self.tv, self.rv * 180 / math.pi, dt)
-            )
+            # update pose
+            self._pose.theta = angle_clamp(self._pose.theta + delta_theta)
+            self._pose.x = self._pose.x + delta_x * np.cos(self._pose.theta)
+            self._pose.y = self._pose.y + delta_x * np.sin(self._pose.theta)
 
-        dist = self.tv * dt
-        dyaw = self.rv * dt
+            # move cursor forward
+            self._left_ticks_last = left_ticks
+            self._right_ticks_last = right_ticks
+            self._timestamp_last = timestamp
+            self._has_estimate = True
 
-        self.yaw = self.angle_clamp(self.yaw + dyaw)
-        self.x = self.x + dist * math.cos(self.yaw)
-        self.y = self.y + dist * math.sin(self.yaw)
-        self.q = tr.quaternion_from_euler(0, 0, self.yaw)
-        self.timestamp = timestamp
-
-        self.left_encoder_last = left_encoder
-        self.right_encoder_last = right_encoder
-        self.encoders_timestamp_last = timestamp
-        self.encoders_timestamp_last_local = timestamp_now
-
-    def get_estimate(self):
-        pass
-
-    def cb_ts_encoders(self, left_encoder, right_encoder):
-
-
-    def cb_timer(self, _):
-        need_print = time.time() - self._print_time > self._print_every_sec
-        if self.encoders_timestamp_last:
-            dt = rospy.get_time() - self.encoders_timestamp_last_local
-            if abs(dt) > self.encoder_stale_dt:
-                if need_print:
-                    self.logwarn(
-                        "No encoder messages received for %.2f seconds. "
-                        "Setting translational and rotational velocities to zero" % dt
-                    )
-                self.rv = 0.0
-                self.tv = 0.0
-        else:
-            if need_print:
-                self.logwarn(
-                    "No encoder messages received. " "Setting translational and rotational velocities to zero"
-                )
-            self.rv = 0.0
-            self.tv = 0.0
-
-        # Publish the odometry message
-        self.publish_odometry()
-        if need_print:
-            self._print_time = time.time()
-
-    def publish_odometry(self):
-        odom = Odometry()
-        odom.header.stamp = rospy.Time.now()  # Ideally, should be encoder time
-        odom.header.frame_id = self.origin_frame
-        odom.pose.pose = Pose(Point(self.x, self.y, self.z), Quaternion(*self.q))
-        odom.child_frame_id = self.target_frame
-        odom.twist.twist = Twist(Vector3(self.tv, 0.0, 0.0), Vector3(0.0, 0.0, self.rv))
-
-        self.pub.publish(odom)
-
-        self._tf_broadcaster.sendTransform(
-            TransformStamped(
-                header=odom.header,
-                child_frame_id=self.target_frame,
-                transform=Transform(
-                    translation=Vector3(self.x, self.y, self.z), rotation=Quaternion(*self.q)
-                ),
-            )
-        )
-
-    @staticmethod
-    def angle_clamp(theta):
-        if theta > 2 * math.pi:
-            return theta - 2 * math.pi
-        elif theta < -2 * math.pi:
-            return theta + 2 * math.pi
-        else:
-            return theta
+    def get_estimate(self) -> Tuple[Optional[Pose2DEstimate], Optional[Velocity2DEstimate]]:
+        if not self._has_estimate:
+            return None, None
+        with self._lock:
+            return self._pose.copy(), self._velocity.copy()

@@ -13,40 +13,41 @@ BGRImage = np.ndarray
 
 
 def plot_belief(
-        lane_filter: ILaneFilter,
-        belief,
-        phi,
-        d,
+        filter: ILaneFilter,
         bgcolor=(0, 204, 255),
         dpi=150,
         other_phi=None,
         other_d=None,
 ) -> BGRImage:
     """Returns a BGR image"""
+
+    # get estimate
+    d, phi = filter.get_estimate()
+
     bgcolor = tuple(x / 255.0 for x in bgcolor)
     figure = plt.figure(facecolor=bgcolor)
 
     f_d = lambda x: 100 * x
     f_phi = np.rad2deg
     # Where are the lanes?
-    lane_width = lane_filter.lanewidth
-    d_max = lane_filter.d_max
-    d_min = lane_filter.d_min
-    phi_max = lane_filter.phi_max
-    phi_min = lane_filter.phi_min
-    delta_d = lane_filter.delta_d
-    delta_phi = lane_filter.delta_phi
+    lane_width = filter.lanewidth
+    d_max = filter.d_max
+    d_min = filter.d_min
+    phi_max = filter.phi_max
+    phi_min = filter.phi_min
+    delta_d = filter.delta_d
+    delta_phi = filter.delta_phi
 
     # note transpose
-    belief = belief.copy()
+    belief = filter.belief.copy()
     zeros = belief == 0
 
     belief[zeros] = np.nan
 
     belief_image = scale(belief, min_value=0)
 
-    x = f_d(lane_filter.d_pcolor)
-    y = f_phi(lane_filter.phi_pcolor)
+    x = f_d(filter.d_pcolor)
+    y = f_phi(filter.phi_pcolor)
 
     z = belief_image[:, :, 0]  # just R component
     z = ma.masked_array(z, zeros)
@@ -88,8 +89,8 @@ def plot_belief(
     )
 
     W = f_d(lane_width / 2)
-    width_white = f_d(lane_filter.linewidth_white)
-    width_yellow = f_d(lane_filter.linewidth_yellow)
+    width_white = f_d(filter.linewidth_white)
+    width_yellow = f_d(filter.linewidth_yellow)
 
     plt.plot([-W, -W], [f_phi(phi_min), f_phi(phi_max)], "w-")
     plt.plot([-W - width_white, -W - width_white], [f_phi(phi_min), f_phi(phi_max)], "k-")
@@ -98,10 +99,10 @@ def plot_belief(
     plt.plot([+W + width_yellow, +W + width_yellow], [f_phi(phi_min), f_phi(phi_max)], "-",
              color="yellow")
     s = ""
-    s += f"status = {lane_filter.status.value}"
+    s += f"status = {filter.status.value}"
     s += f"\nphi = {f_phi(phi):.1f} deg"
     s += f"\nd = {f_d(d):.1f} cm"
-    s += f"\nentropy = {lane_filter.get_entropy():.4f}"
+    s += f"\nentropy = {filter.get_entropy():.4f}"
     s += f"\nmax = {belief.max():.4f}"
     s += f"\nmin = {belief.min():.4f}"
 

@@ -1,5 +1,5 @@
 from math import floor, sqrt
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
@@ -45,7 +45,7 @@ class LaneFilterHistogram(ILaneFilter):
         RV = multivariate_normal(self.mean_0, self.cov_0)
         self.belief = RV.pdf(pos)
 
-    def get_entropy(self):
+    def get_entropy(self) -> float:
         belief = self.belief
         s = entropy(belief.flatten())
         return s
@@ -95,13 +95,13 @@ class LaneFilterHistogram(ILaneFilter):
             else:
                 self.belief /= np.sum(self.belief)
 
-    def get_estimate(self):
+    def get_estimate(self) -> Tuple[float, float]:
         maxids = np.unravel_index(self.belief.argmax(), self.belief.shape)
         d_max = self.d_min + (maxids[0] + 0.5) * self.delta_d
         phi_max = self.phi_min + (maxids[1] + 0.5) * self.delta_phi
         return d_max, phi_max
 
-    def get_max(self):
+    def get_max(self) -> float:
         return self.belief.max()
 
     def get_inlier_segments(self, segments: List[Segment], d_max, phi_max):

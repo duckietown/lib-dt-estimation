@@ -38,7 +38,8 @@ install_requires = [
     "numpy<=1.21.5",
     # numpy (1.7.3 is the last scipy supporting Python 3.7)
     "scipy<=1.7.3",
-    "reprep"
+    "reprep",
+    "transformations~=2021.6.6"
 ]
 tests_require = []
 

@@ -1,7 +1,7 @@
 import dataclasses
 from abc import ABCMeta, abstractmethod
 from enum import Enum
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 
@@ -125,15 +125,18 @@ class ILaneFilter(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def get_estimate(self):
-        """Returns a numpy array with the estimated state"""
+    def get_estimate(self) -> Tuple[float, float]:
+        """
+        Returns a tuple of two estimated values, `d` (lateral offset) and
+        `phi` (heading offset).
+        """
 
     @abstractmethod
-    def get_entropy(self):
+    def get_entropy(self) -> float:
         pass
 
     @abstractmethod
-    def get_max(self):
+    def get_max(self) -> float:
         pass
 
     @abstractmethod
