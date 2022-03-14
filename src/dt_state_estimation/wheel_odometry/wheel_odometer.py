@@ -44,7 +44,7 @@ class WheelOdometer(IWheelOdometer):
             return
 
         # timestamp is NOW if not given
-        timestamp = timestamp or time.time()
+        timestamp = timestamp if timestamp is not None else time.time()
 
         # compute delta_t between this reading and the previous
         dt = timestamp - self._timestamp_last
