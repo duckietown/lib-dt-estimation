@@ -36,7 +36,7 @@ install_requires = [
     "opencv-python-headless",
     # numpy (1.21.5 is the last numpy supporting Python 3.7)
     "numpy<=1.21.5",
-    # numpy (1.7.3 is the last scipy supporting Python 3.7)
+    # scipy (1.7.3 is the last scipy supporting Python 3.7)
     "scipy<=1.7.3",
     "reprep",
     "transformations~=2021.6.6"

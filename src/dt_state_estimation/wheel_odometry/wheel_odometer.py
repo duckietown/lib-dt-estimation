@@ -61,7 +61,7 @@ class WheelOdometer(IWheelOdometer):
         delta_x = (left_distance + right_distance) / 2
 
         # change in heading
-        delta_theta = (right_distance - left_distance) / self.wheel_base
+        delta_theta = (right_distance - left_distance) / self.wheel_baseline
 
         if dt < 1e-6:
             self._logger.warning(f"Time between readings ({dt:.5f}) is too small. Ignoring")

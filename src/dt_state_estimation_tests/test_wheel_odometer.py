@@ -1,5 +1,3 @@
-import logging
-
 import numpy as np
 
 from dt_state_estimation.wheel_odometry import WheelOdometer
