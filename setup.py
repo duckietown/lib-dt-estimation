@@ -73,4 +73,5 @@ setup(
     packages=find_packages("./src"),
     long_description=description,
     version=version,
+    include_package_data=True
 )

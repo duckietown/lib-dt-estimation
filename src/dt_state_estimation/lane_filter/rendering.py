@@ -1,4 +1,5 @@
 import io
+import os
 
 import numpy as np
 import numpy.ma as ma
@@ -8,8 +9,69 @@ import cv2
 import matplotlib.pyplot as plt
 
 from dt_state_estimation.lane_filter import ILaneFilter
+from typing import Tuple
+
 
 BGRImage = np.ndarray
+assets_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "assets"))
+background_image_fpath: str = os.path.join(assets_dir, "lane_filter_grid.png")
+background_image: BGRImage = cv2.imread(background_image_fpath)
+
+
+def plot_d_phi(d: float, phi: float, size: Tuple[int, int] = (-1, -1)):
+    """
+    Generates a debug image with the estimated pose of the robot drawn.
+
+    Args:
+        d (:obj:`float`): Estimated `d`
+        phi (:obj:`float`): Estimated `phi`
+        size (:obj:`tuple`): Size of the image to draw
+
+    Returns:
+        :obj:`numpy array`: an OpenCV image
+
+    """
+    size_x, size_y = size
+    # 0.35m is the total width depicted in the background image
+    total_width_meters = 0.35
+    # in the image, the origin is at 23.6cm from the left border
+    origin_meters = 0.236
+
+    # start with a fresh copy of the background
+    image = background_image.copy()
+
+    # resize if needed
+    if size_x > 0 and size_y > 0:
+        image = cv2.resize(image, size)
+    size_y, size_x, _ = image.shape
+
+    # compute origin
+    pixel_per_meter = size_x / total_width_meters
+    origin_x_px = origin_meters * pixel_per_meter
+    origin_y_px = size_y * 0.5
+
+    # compute robot's location
+    x = int(origin_x_px + d * pixel_per_meter)
+    y = int(origin_y_px)
+
+    # draw location
+    cv2.circle(image, (x, y), 14, (0, 0, 200), 3)
+
+    # simple 2D rotation, used to rotate the heading indicator
+    R = np.array([
+        [np.cos(phi), -np.sin(phi), 0],
+        [np.sin(phi), np.cos(phi), 0],
+        [0, 0, 1]
+    ])
+
+    # compute heading indicator line coordinates
+    heading_bar = np.array([[0, 0, 1], [0, -40, 1]])
+    heading_bar = np.dot(R, heading_bar.T).T[:, :2].astype(int) + [x, y]
+
+    # draw heading
+    cv2.line(image, tuple(heading_bar[0]), tuple(heading_bar[1]), (0, 0, 200), 5)
+    # ---
+    return image
 
 
 def plot_belief(
@@ -144,4 +206,7 @@ def _plt_to_bgr(figure, dpi) -> BGRImage:
     return cv2.imdecode(png, cv2.IMREAD_COLOR)
 
 
-__all__ = ["plot_belief"]
+__all__ = [
+    "plot_belief",
+    "plot_d_phi"
+]

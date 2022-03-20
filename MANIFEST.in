@@ -22,4 +22,6 @@ prune out
 
 #@ add local below
 
+include src/dt_state_estimation/lane_filter/assets/*.png
+
 prune src/dt_state_estimation_tests
