@@ -37,6 +37,10 @@ def plot_d_phi(d: float, phi: float, size: Tuple[int, int] = (-1, -1)):
     # in the image, the origin is at 23.7cm from the left border
     origin_meters = 0.237
 
+    # the axis of the rendered image and the axis of the robot are flipped
+    d *= -1.0
+    phi *= -1.0
+
     # start with a fresh copy of the background
     image = background_image.copy()
 
