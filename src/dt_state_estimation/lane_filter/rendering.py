@@ -32,10 +32,10 @@ def plot_d_phi(d: float, phi: float, size: Tuple[int, int] = (-1, -1)):
 
     """
     size_x, size_y = size
-    # 0.35m is the total width depicted in the background image
-    total_width_meters = 0.35
-    # in the image, the origin is at 23.6cm from the left border
-    origin_meters = 0.236
+    # 36cm is the total width depicted in the background image
+    total_width_meters = 0.36
+    # in the image, the origin is at 23.7cm from the left border
+    origin_meters = 0.237
 
     # start with a fresh copy of the background
     image = background_image.copy()
