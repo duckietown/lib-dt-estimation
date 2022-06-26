@@ -94,12 +94,30 @@ class LaneFilterHistogram(ILaneFilter):
                 self.belief = measurement_likelihood
             else:
                 self.belief /= np.sum(self.belief)
-
+    
     def get_estimate(self) -> Tuple[float, float]:
-        maxids = np.unravel_index(self.belief.argmax(), self.belief.shape)
-        d_max = self.d_min + (maxids[0] + 0.5) * self.delta_d
-        phi_max = self.phi_min + (maxids[1] + 0.5) * self.delta_phi
-        return d_max, phi_max
+        n_rows, n_cols = self.belief.shape
+
+        # weighted avg
+        d_w_tot: float = 0.0
+        phi_w_tot: float = 0.0
+        d_sum: float = 0.0
+        phi_sum: float = 0.0
+
+        for i in range(n_rows):
+            for j in range(n_cols):
+                cell_belief = self.belief[i, j]
+                d_w_tot += cell_belief
+                phi_w_tot += cell_belief
+                d_sum += float(i) * cell_belief
+                phi_sum += float(j) * cell_belief
+
+        weighted_avg_d_step: float = d_sum / d_w_tot
+        weighted_avg_phi_step: float = phi_sum / phi_w_tot
+
+        d_est = self.d_min + (weighted_avg_d_step + 0.5) * self.delta_d
+        phi_est = self.phi_min + (weighted_avg_phi_step + 0.5) * self.delta_phi
+        return d_est, phi_est
 
     def get_max(self) -> float:
         return self.belief.max()
