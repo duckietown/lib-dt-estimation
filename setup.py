@@ -6,7 +6,7 @@ from setuptools import find_packages, setup
 package_name = "dt-state-estimation"
 library_webpage = f"http://github.com/duckietown/lib-{package_name}"
 maintainer = "Andrea F. Daniele"
-maintainer_email = "afdaniele@duckietown.org"
+maintainer_email = "afdaniele@duckietown.com"
 short_description = "State estimation components of Duckietown's autonomy behavior."
 full_description = """
 State estimation components of the autonomous behavior pipeline running on Duckietown robots.
