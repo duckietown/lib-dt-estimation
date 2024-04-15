@@ -34,10 +34,8 @@ version = get_version_from_source(f"src/{package_name.replace('-', '_')}/__init_
 install_requires = [
     # opencv4
     "opencv-python-headless",
-    # numpy (1.21.5 is the last numpy supporting Python 3.7)
-    "numpy<=1.21.5",
-    # scipy (1.7.3 is the last scipy supporting Python 3.7)
-    "scipy<=1.7.3",
+    "numpy<=1.26.2",
+    "scipy<=1.13.0",
     "reprep",
     "transformations~=2021.6.6"
 ]
