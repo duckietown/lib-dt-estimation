@@ -60,6 +60,9 @@ class ILaneFilter(metaclass=ABCMeta):
                  range_max: float = 0.6,
                  curvature_right: float = -0.054,
                  curvature_left: float = 0.025,
+                 encoder_resolution: float = 135.0,
+                 wheel_baseline: float = 0.1,
+                 wheel_radius: float = 0.0318,
                  ):
         # store parameters
         self.mean_d_0: float = mean_d_0
@@ -85,6 +88,9 @@ class ILaneFilter(metaclass=ABCMeta):
         self.range_max: float = range_max
         self.curvature_right: float = curvature_right
         self.curvature_left: float = curvature_left
+        self.encoder_resolution: float = encoder_resolution
+        self.wheel_baseline: float = wheel_baseline
+        self.wheel_radius: float = wheel_radius
         # public objects
         self.d, self.phi = \
             np.mgrid[

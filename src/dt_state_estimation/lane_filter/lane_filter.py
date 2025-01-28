@@ -50,9 +50,20 @@ class LaneFilterHistogram(ILaneFilter):
         s = entropy(belief.flatten())
         return s
 
-    def predict(self, delta_t: float, v: float, w: float):
-        d_t = self.d + v * delta_t * np.sin(self.phi)
-        phi_t = self.phi + w * delta_t
+    def predict(self,left_encoder_ticks: float, right_encoder_ticks: float):
+        # Calculate v and w from ticks using kinematics
+        R = self.wheel_radius
+        alpha = 2 * np.pi / self.encoder_resolution
+        d_left = R * alpha * left_encoder_ticks
+        d_right = R * alpha * right_encoder_ticks
+        d_A = (d_left + d_right) / 2
+        w = (d_right - d_left) / self.wheel_baseline
+        [d_t, phi_t] = self.get_estimate()
+        v = d_A * np.sin(w + phi_t)
+
+        # Propagate each centroid forward using the kinematic function
+        d_t = self.d + v
+        phi_t = self.phi + w
 
         p_belief = np.zeros(self.belief.shape)
 
@@ -62,10 +73,10 @@ class LaneFilterHistogram(ILaneFilter):
             for j in range(self.belief.shape[1]):
                 if self.belief[i, j] > 0:
                     if (
-                            d_t[i, j] > self.d_max
-                            or d_t[i, j] < self.d_min
-                            or phi_t[i, j] < self.phi_min
-                            or phi_t[i, j] > self.phi_max
+                        d_t[i, j] > self.d_max
+                        or d_t[i, j] < self.d_min
+                        or phi_t[i, j] < self.phi_min
+                        or phi_t[i, j] > self.phi_max
                     ):
                         continue
 
@@ -79,6 +90,7 @@ class LaneFilterHistogram(ILaneFilter):
 
         if np.sum(s_belief) == 0:
             return
+
         self.belief = s_belief / np.sum(s_belief)
 
     def update(self, segments: List[Segment]):
@@ -87,37 +99,21 @@ class LaneFilterHistogram(ILaneFilter):
         # generate all belief arrays
 
         measurement_likelihood = self._generate_measurement_likelihood(segmentsArray)
-
         if measurement_likelihood is not None:
             self.belief = np.multiply(self.belief, measurement_likelihood)
             if np.sum(self.belief) == 0:
                 self.belief = measurement_likelihood
             else:
                 self.belief /= np.sum(self.belief)
+
     
     def get_estimate(self) -> Tuple[float, float]:
-        n_rows, n_cols = self.belief.shape
+        maxids = np.unravel_index(self.belief.argmax(), self.belief.shape)
+        d_max = self.d_min + (maxids[0] + 0.5) * self.delta_d
+        phi_max = self.phi_min + (maxids[1] + 0.5) * self.delta_phi
 
-        # weighted avg
-        d_w_tot: float = 0.0
-        phi_w_tot: float = 0.0
-        d_sum: float = 0.0
-        phi_sum: float = 0.0
+        return d_max, phi_max
 
-        for i in range(n_rows):
-            for j in range(n_cols):
-                cell_belief = self.belief[i, j]
-                d_w_tot += cell_belief
-                phi_w_tot += cell_belief
-                d_sum += float(i) * cell_belief
-                phi_sum += float(j) * cell_belief
-
-        weighted_avg_d_step: float = d_sum / d_w_tot
-        weighted_avg_phi_step: float = phi_sum / phi_w_tot
-
-        d_est = self.d_min + (weighted_avg_d_step + 0.5) * self.delta_d
-        phi_est = self.phi_min + (weighted_avg_phi_step + 0.5) * self.delta_phi
-        return d_est, phi_est
 
     def get_max(self) -> float:
         return self.belief.max()
@@ -135,10 +131,14 @@ class LaneFilterHistogram(ILaneFilter):
         measurement_likelihood = np.zeros(self.d.shape)
 
         for segment in segments:
-            d_i, phi_i, l_i, weight = self._generate_vote(segment)
+            d_i, phi_i = self._generate_vote(segment)
 
             # if the vote lands outside of the histogram discard it
-            if d_i > self.d_max or d_i < self.d_min or phi_i < self.phi_min or phi_i > self.phi_max:
+            if (d_i > self.d_max
+                    or d_i < self.d_min
+                    or phi_i < self.phi_min
+                    or phi_i > self.phi_max
+            ):
                 continue
 
             i = int(floor((d_i - self.d_min) / self.delta_d))
@@ -173,9 +173,7 @@ class LaneFilterHistogram(ILaneFilter):
             if p1[0] > p2[0]:  # right edge of white lane
                 d_i -= self.linewidth_white
             else:  # left edge of white lane
-
                 d_i = -d_i
-
                 phi_i = -phi_i
             d_i -= self.lanewidth / 2
 
@@ -185,11 +183,10 @@ class LaneFilterHistogram(ILaneFilter):
                 phi_i = -phi_i
             else:  # right edge of white lane
                 d_i = -d_i
-            d_i = self.lanewidth / 2 - d_i
 
-        # weight = distance
-        weight = 1
-        return d_i, phi_i, l_i, weight
+            d_i = self.lanewidth/2 - d_i
+
+        return d_i, phi_i
 
     @staticmethod
     def _get_segment_distance(segment: Segment):
@@ -234,9 +231,9 @@ class LaneFilterHistogram(ILaneFilter):
                 continue
 
             # only consider points in a certain range from the robot for the position estimation
-            point_range = self._get_segment_distance(segment)
-            if self.range_est > point_range > self.range_est_min:
-                filtered_segments.append(segment)
+            # point_range = self._get_segment_distance(segment)
+            # if self.range_est > point_range > self.range_est_min:
+            filtered_segments.append(segment)
 
         return filtered_segments
 
