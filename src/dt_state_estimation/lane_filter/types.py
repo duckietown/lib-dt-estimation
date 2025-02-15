@@ -121,7 +121,7 @@ class ILaneFilter(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def predict(self, dt, v, w):
+    def predict(self, encoder_left_ticks, encoder_right_ticks):
         pass
 
     @abstractmethod
